@@ -1,0 +1,27 @@
+# Secretos
+.env
+.env.*
+!.env.ejemplo
+certificados/
+
+# Dependencias y compilación
+node_modules/
+dist/
+
+# Salidas de herramientas
+.playwright-cli/
+playwright-report/
+test-results/
+graphify-out/
+*.log
+
+# Respaldos
+respaldos/
+*.dump
+*.sql.gz
+
+
+
+# Resultados de las pruebas de punta a punta
+e2e/resultados/
+e2e/node_modules/

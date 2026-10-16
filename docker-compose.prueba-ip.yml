@@ -1,0 +1,9 @@
+# SOLO PRUEBAS (scripts/probar-ip-real.sh), junto con docker-compose.pruebas.yml y -p sjlc-pruebas:
+# Nginx confía en las redes privadas como si fueran Cloudflare.
+services:
+  backend:
+    environment:
+      LIMITE_FALLOS_IP: 20
+  web:
+    volumes:
+      - ./nginx/pruebas/ip-real-prueba.conf:/etc/nginx/cloudflare/ip-real.conf:ro

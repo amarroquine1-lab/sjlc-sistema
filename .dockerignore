@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.*
+certificados/
+**/node_modules
+**/dist
+docs
+db
+scripts
+respaldos
+graphify-out
+*.log

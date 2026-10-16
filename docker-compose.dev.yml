@@ -1,0 +1,58 @@
+# Desarrollo y pruebas. Uso:
+#   docker compose -p sjlc-dev -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Aquí viven las construcciones locales: producción (docker-compose.yml) solo descarga imágenes publicadas.
+# Todos los puertos quedan en 127.0.0.1; se accede por túnel SSH.
+services:
+  bd:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  backend:
+    image: sjlc-backend:dev
+    build:
+      context: ./backend
+      additional_contexts:
+        db: ./db
+      target: desarrollo
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend/src:/app/src
+      - ./db:/app/db:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  web:
+    image: sjlc-web:dev
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: produccion
+    environment:
+      ENTORNO: desarrollo
+    ports: !override
+      - "127.0.0.1:8080:8080"
+    volumes: !reset []
+
+  # Vite con recarga en caliente (solo desarrollo)
+  frontend:
+    image: sjlc-frontend:dev
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: desarrollo
+    environment:
+      TZ: ${TZ:-America/Guatemala}
+      API_DESTINO: http://backend:3000
+    volumes:
+      - ./frontend/src:/app/src
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [frontal]
+
+networks:
+  interna:
+    internal: false

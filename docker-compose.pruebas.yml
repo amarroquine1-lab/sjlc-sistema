@@ -1,0 +1,26 @@
+# Entorno de pruebas junto a desarrollo, sin chocar. Uso (solo bd y backend):
+#   docker compose -p sjlc-pruebas -f docker-compose.yml -f docker-compose.dev.yml \
+#     -f docker-compose.pruebas.yml up -d bd backend
+# Puertos solo en 127.0.0.1: bd 15432, backend 13000, web 18080.
+# El volumen datos_bd queda separado por el nombre del proyecto (sjlc-pruebas_datos_bd).
+# Sirve para restaurar respaldos (scripts/restaurar.sh) sin tocar sjlc-dev.
+services:
+  bd:
+    ports: !override
+      - "127.0.0.1:15432:5432"
+
+  backend:
+    ports: !override
+      - "127.0.0.1:13000:3000"
+    # Las pruebas corren a cualquier hora: el cierre automático de las 20:00 cerraría atenciones a mitad de una prueba
+    environment:
+      CIERRE_AUTOMATICO: "no"
+
+  web:
+    ports: !override
+      - "127.0.0.1:18080:8080"
+
+  # Sin Vite en pruebas
+  frontend:
+    profiles: ["no"]
+    ports: !reset []

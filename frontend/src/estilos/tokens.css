@@ -1,0 +1,56 @@
+:root {
+  color-scheme: light;
+  /* Ancla institucional: azul marino del MSPAS */
+  --marino: #12395f;
+  --marino-fondo: #e6ecf3;
+  /* Un color por área (todos cumplen AA con texto blanco y sobre su fondo suave) */
+  --c-recepcion: #12395f;   --f-recepcion: #e6ecf3;
+  --c-signos: #0a6f82;      --f-signos: #ddf2f5;
+  --c-doctor: #1e7a47;      --f-doctor: #e1f3e8;
+  --c-nutricion: #b14a00;   --f-nutricion: #fce9d6;
+  --c-vacunacion: #7b2c78;  --f-vacunacion: #f4e3f2;
+  --c-farmacia: #b93a28;    --f-farmacia: #fce5df;
+  --c-emergencia: #b3261e;  --f-emergencia: #fbe3e1;
+  /* Acentos con energía, para ilustraciones y detalles (no para texto) */
+  --maiz: #f2b705;
+  --v-turquesa: #17b3c4;
+  --v-coral: #f26b50;
+  --v-celeste: #4997d0;
+  /* Fondo cálido y tinta */
+  --crema: #fbf7ef;
+  --hueso: #f4eee2;
+  --superficie: #ffffff;
+  --linea: #e6ddcb;
+  --linea-fuerte: #8b8574;
+  --tinta: #1f2933;
+  --tinta-suave: #55606b;
+  /* Área activa (cada pantalla la define con data-area; por omisión, el marino) */
+  --area: var(--c-recepcion);
+  --area-fondo: var(--f-recepcion);
+  /* Estados */
+  --peligro: #b3261e;
+  --peligro-fondo: #fbe3e1;
+  --exito: #1e7a47;
+  --exito-fondo: #e1f3e8;
+  --aviso: #7a4f00;
+  --aviso-fondo: #fdf1d3;
+  /* Forma y profundidad: sombras cálidas y bajas */
+  --radio: 8px;
+  --radio-tarjeta: 14px;
+  --alto-control: 48px;
+  --sombra-1: 0 1px 2px rgba(70, 48, 20, 0.08), 0 3px 12px rgba(70, 48, 20, 0.06);
+  --sombra-2: 0 10px 32px rgba(40, 28, 12, 0.24);
+  --ancho-pagina: 1280px;
+  --ancho-cola: 400px;
+  /* Tipografía alojada en el servidor */
+  --fuente-titulo: "Outfit", system-ui, sans-serif;
+  --fuente: "Plus Jakarta Sans", system-ui, sans-serif;
+  --fuente-codigo: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+}
+[data-area="recepcion"]  { --area: var(--c-recepcion);  --area-fondo: var(--f-recepcion); }
+[data-area="signos"]     { --area: var(--c-signos);     --area-fondo: var(--f-signos); }
+[data-area="doctor"]     { --area: var(--c-doctor);     --area-fondo: var(--f-doctor); }
+[data-area="nutricion"]  { --area: var(--c-nutricion);  --area-fondo: var(--f-nutricion); }
+[data-area="vacunacion"] { --area: var(--c-vacunacion); --area-fondo: var(--f-vacunacion); }
+[data-area="farmacia"]   { --area: var(--c-farmacia);   --area-fondo: var(--f-farmacia); }
+[data-area="emergencia"] { --area: var(--c-emergencia); --area-fondo: var(--f-emergencia); }

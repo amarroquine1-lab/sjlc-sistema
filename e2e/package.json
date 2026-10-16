@@ -1,0 +1,11 @@
+{
+  "name": "sjlc-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "probar": "playwright test" },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "1.58.0"
+  }
+}

@@ -1,0 +1,109 @@
+name: sjlc
+
+x-registro: &registro
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  bd:
+    image: postgres:16.15-alpine
+    user: postgres
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-America/Guatemala}
+      PGTZ: ${TZ:-America/Guatemala}
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB en .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=30
+      - -c
+      - timezone=America/Guatemala
+      - -c
+      - log_timezone=America/Guatemala
+    volumes:
+      - datos_bd:/var/lib/postgresql/data
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *registro
+
+  backend:
+    image: ghcr.io/amarroquine1-lab/sjlc-backend:${SJLC_VERSION:-dev}
+    restart: unless-stopped
+    # No recibe POSTGRES_USER ni POSTGRES_PASSWORD (dueño de la BD): solo
+    # scripts/migrar.sh y scripts/sembrar.sh los pasan en ejecuciones puntuales.
+    environment:
+      TZ: ${TZ:-America/Guatemala}
+      NODE_ENV: production
+      PUERTO_BACKEND: ${PUERTO_BACKEND:-3000}
+      BD_HOST: bd
+      BD_PUERTO: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB en .env}
+      BD_CONTRASENA_APP: ${BD_CONTRASENA_APP:?Falta BD_CONTRASENA_APP en .env}
+      ENTORNO: ${ENTORNO:?Falta ENTORNO en .env (desarrollo, pruebas o produccion)}
+      DIR_DB: /app/db
+      JWT_SECRETO: ${JWT_SECRETO:?Falta JWT_SECRETO en .env (mínimo 32 caracteres)}
+      ORIGENES_PERMITIDOS: ${ORIGENES_PERMITIDOS:-}
+      # Solo se confía en X-Forwarded-For si la conexión directa viene de una red interna (Nginx)
+      PROXY_CONFIABLE: ${PROXY_CONFIABLE:-loopback, uniquelocal}
+      # Todo el centro sale por una sola IP pública: el límite de fallos por IP no puede ser bajo
+      LIMITE_FALLOS_IP: ${LIMITE_FALLOS_IP:-60}
+      LIMITE_GENERAL: ${LIMITE_GENERAL:-600}
+      # Hora (HH:MM, Guatemala) en que las atenciones abiertas pasan a "no concluida"
+      HORA_CIERRE: ${HORA_CIERRE:-20:00}
+      # "no" solo en el entorno de pruebas
+      CIERRE_AUTOMATICO: ${CIERRE_AUTOMATICO:-si}
+    depends_on:
+      bd:
+        condition: service_healthy
+    networks: [interna, frontal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *registro
+
+  web:
+    image: ghcr.io/amarroquine1-lab/sjlc-web:${SJLC_VERSION:-dev}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      TZ: ${TZ:-America/Guatemala}
+      ENTORNO: produccion
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./certificados:/etc/nginx/certificados:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [frontal]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/nginx-salud"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *registro
+
+networks:
+  # La base de datos solo es alcanzable desde el backend y sin salida a internet
+  interna:
+    internal: true
+  frontal: {}
+
+volumes:
+  datos_bd:

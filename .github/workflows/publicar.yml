@@ -1,0 +1,81 @@
+# Compila y publica las imágenes del backend y de la web en GHCR cuando se crea una etiqueta vX.Y (o vX.Y.Z).
+# Producción nunca compila: solo descarga estas imágenes (docker compose pull).
+name: Publicar imágenes
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRO: ghcr.io
+  PREFIJO: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  publicar:
+    # Solo se publica desde el repositorio limpio; en el repositorio de trabajo este flujo no corre
+    if: github.repository == 'amarroquine1-lab/sjlc-sistema'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - nombre: sjlc-backend
+            contexto: ./backend
+            archivo: ./backend/Dockerfile
+            adicionales: |
+              db=./db
+          - nombre: sjlc-web
+            contexto: .
+            archivo: ./frontend/Dockerfile
+            adicionales: ""
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Iniciar sesión en GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRO }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compilar la imagen (sin publicar todavía)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.contexto }}
+          file: ${{ matrix.archivo }}
+          target: produccion
+          build-contexts: ${{ matrix.adicionales }}
+          load: true
+          push: false
+          tags: ${{ env.PREFIJO }}/${{ matrix.nombre }}:${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}
+
+      - name: Escanear vulnerabilidades (se detiene ante críticas con corrección disponible)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.PREFIJO }}/${{ matrix.nombre }}:${{ github.ref_name }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Publicar la imagen en GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.contexto }}
+          file: ${{ matrix.archivo }}
+          target: produccion
+          build-contexts: ${{ matrix.adicionales }}
+          push: true
+          tags: ${{ env.PREFIJO }}/${{ matrix.nombre }}:${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.nombre }}
