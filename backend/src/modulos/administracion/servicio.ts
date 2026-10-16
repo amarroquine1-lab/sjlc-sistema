@@ -21,7 +21,12 @@ export async function listarBitacora(pool: pg.Pool, f: FiltroBitacora) {
   const PH_LIMITE = p(f.por_pagina); const PH_DESPLAZAMIENTO = p((f.pagina - 1) * f.por_pagina);
   const filas = await pool.query(
     `SELECT b.id_bitacora, to_char(b.fecha_hora, 'DD/MM/YYYY HH24:MI:SS') AS fecha_hora, coalesce(u.nombre_usuario, CASE WHEN b.nombre_usuario_intentado IS NULL THEN NULL ELSE left(b.nombre_usuario_intentado, 2) || '… (desconocido)' END) AS usuario,
-            b.accion, b.entidad, b.id_registro, host(b.direccion_ip) AS direccion_ip, b.detalle
+            b.accion, b.entidad, b.id_registro, host(b.direccion_ip) AS direccion_ip,
+            -- Al eliminar un usuario el registro puede quedar sin a quién apuntar: el detalle dice cuál era y qué pasó.
+            coalesce(b.detalle, CASE WHEN b.entidad = 'usuarios' AND b.accion = 'eliminar' THEN
+              CASE WHEN b.valor_nuevo IS NULL THEN 'Se borró por completo al usuario ' ELSE 'Se quitó del sistema al usuario ' END
+              || (b.valor_anterior ->> 'nombre_usuario') || ' (' || (b.valor_anterior ->> 'nombres') || ' ' || (b.valor_anterior ->> 'apellidos') || ')'
+              || CASE WHEN b.valor_nuevo IS NULL THEN '' ELSE '; sus registros se conservan' END END) AS detalle
        ${SQL_DESDE} ${donde} ORDER BY b.id_bitacora DESC LIMIT ${PH_LIMITE} OFFSET ${PH_DESPLAZAMIENTO}`, v);
   return { datos: filas.rows, total, pagina: f.pagina, por_pagina: f.por_pagina };
 }

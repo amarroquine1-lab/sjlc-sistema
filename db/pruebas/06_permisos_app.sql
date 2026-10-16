@@ -45,7 +45,7 @@ SELECT pg_temp.debe_fallar($t$SELECT public.registrar_bitacora()$t$, '42501', 's
 SELECT pg_temp.verificar(NOT has_table_privilege('sjlc_app', 'public.pacientes', 'DELETE'), 'sjlc_app no tiene DELETE sobre pacientes');
 SELECT pg_temp.verificar(NOT has_table_privilege('sjlc_app', 'public.pacientes', 'TRUNCATE'), 'sjlc_app no tiene TRUNCATE sobre pacientes');
 SELECT pg_temp.verificar(has_table_privilege('sjlc_app', 'public.pacientes_encargados', 'DELETE'), 'sjlc_app sí tiene DELETE sobre pacientes_encargados (única excepción)');
-SELECT pg_temp.verificar((SELECT count(*) FROM information_schema.role_table_grants WHERE grantee = 'sjlc_app' AND privilege_type = 'DELETE' AND table_schema = 'public') = 1, 'DELETE solo en una tabla para sjlc_app');
+SELECT pg_temp.verificar((SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.role_table_grants WHERE grantee = 'sjlc_app' AND privilege_type = 'DELETE' AND table_schema = 'public') = 'pacientes_encargados,usuarios', 'DELETE solo en pacientes_encargados (corregir un vínculo) y usuarios (cuentas sin actividad, con reglas en un trigger)');
 SELECT pg_temp.verificar(NOT has_schema_privilege('sjlc_app', 'public', 'CREATE'), 'sjlc_app no tiene CREATE en el esquema public');
 SELECT pg_temp.verificar(NOT has_schema_privilege('public', 'public', 'CREATE'), 'PUBLIC no tiene CREATE en el esquema public');
 SELECT pg_temp.verificar(NOT has_database_privilege('public', current_database(), 'CONNECT'), 'PUBLIC no puede conectarse a la base');

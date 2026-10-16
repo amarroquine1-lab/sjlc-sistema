@@ -129,7 +129,8 @@ export function FormularioPaciente() {
         {error && <Mensaje tipo="error">{error}</Mensaje>}
         {avisos.map((a) => <Mensaje key={a} tipo="aviso">{a}</Mensaje>)}
         {editando && !original && !error && <p>Cargando los datos del paciente…</p>}
-        {(!editando || original) && <form className="panel" onSubmit={enviar} noValidate>
+        {(!editando || original) && <form className="panel formulario-registro" onSubmit={enviar} noValidate>
+          <div className="formulario-registro__cuerpo">
           <div className="rejilla-formulario">
             <Campo etiqueta="Nombres" value={f.nombres} onChange={(e) => set("nombres", e.target.value)} error={errores.nombres} autoComplete="off" />
             <Campo etiqueta="Apellidos" value={f.apellidos} onChange={(e) => set("apellidos", e.target.value)} error={errores.apellidos} autoComplete="off" />
@@ -143,11 +144,13 @@ export function FormularioPaciente() {
               </div>
               {errores.sexo && <div className="campo__error">{errores.sexo}</div>}
             </div>
-            <Campo etiqueta="DPI/CUI" inputMode="numeric" value={f.cui} onChange={(e) => set("cui", e.target.value)} error={errores.cui} disabled={f.sin_cui}
-              ayuda={menor ? "En menores de edad es opcional." : "13 dígitos, tal como aparece en el DPI."} autoComplete="off" />
-            {!editando && !menor && (
-              <div className="campo"><label className="casilla"><input type="checkbox" checked={f.sin_cui} onChange={(e) => { set("sin_cui", e.target.checked); if (e.target.checked) set("cui", ""); }} />La persona no tiene DPI</label></div>
-            )}
+            <div>
+              <Campo etiqueta="DPI/CUI" inputMode="numeric" value={f.cui} onChange={(e) => set("cui", e.target.value)} error={errores.cui} disabled={f.sin_cui}
+                ayuda={menor ? "En menores de edad es opcional." : "13 dígitos, tal como aparece en el DPI."} autoComplete="off" />
+              {!editando && !menor && (
+                <div className="campo campo--casilla"><label className="casilla"><input type="checkbox" checked={f.sin_cui} onChange={(e) => { set("sin_cui", e.target.checked); if (e.target.checked) set("cui", ""); }} />La persona no tiene DPI</label></div>
+              )}
+            </div>
             <Campo etiqueta="Teléfono" type="tel" inputMode="tel" value={f.telefono} onChange={(e) => set("telefono", e.target.value)} error={errores.telefono} autoComplete="off" />
             <Campo etiqueta="N.º de registro en libro (opcional)" value={f.numero_registro_libro} onChange={(e) => set("numero_registro_libro", e.target.value)} ayuda="Número de expediente del libro de papel, si lo tiene." autoComplete="off" />
           </div>
@@ -181,7 +184,8 @@ export function FormularioPaciente() {
               </div>
             </>
           )}
-          <div className="acciones"><Boton type="submit" cargando={cargando}>{editando ? "Guardar cambios" : "Registrar paciente"}</Boton><Boton variante="secundario" onClick={() => navegar("/recepcion")}>Cancelar</Boton></div>
+          </div>
+          <div className="acciones acciones--fijas"><Boton type="submit" cargando={cargando}>{editando ? "Guardar cambios" : "Registrar paciente"}</Boton><Boton variante="secundario" onClick={() => navegar("/recepcion")}>Cancelar</Boton></div>
         </form>}
       </main>
       {duplicados && (

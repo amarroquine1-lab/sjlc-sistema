@@ -154,6 +154,7 @@ Cada vez que alguien consulta un historial, queda anotado en la bitácora.
 - **Restablecer contraseña:** genera otra temporal. Úsela cuando alguien olvidó la suya (no hay recuperación por correo).
 - **Desbloquear:** libera una cuenta bloqueada por intentos fallidos.
 - **Desactivar / Activar:** una persona que ya no trabaja en el centro se desactiva; no se borra, para conservar el rastro.
+- **Eliminar:** sirve para cualquier cuenta. Pide escribir el nombre de usuario para confirmar y queda anotado en la bitácora. El mensaje de confirmación dice qué va a pasar: si la cuenta **nunca tuvo actividad** (nunca ingresó y no tiene registros) *se borrará por completo*; si **ya tiene actividad**, *se quitará del sistema y sus registros se conservan*: desaparece de la lista, no puede volver a entrar ni se puede reactivar, y su nombre sigue en las atenciones, recetas y demás registros donde aparece. No se puede eliminar su propia cuenta ni al último administrador activo (el botón aparece apagado y al tocarlo explica por qué). Para consultar a los eliminados marque **Mostrar eliminados**: salen solo para consulta, sin acciones.
 
 ### 9.2 Bitácora (imagen `19-bitacora.png`)
 

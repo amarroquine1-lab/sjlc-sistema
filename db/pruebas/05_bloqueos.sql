@@ -3,7 +3,7 @@ DO $$
 DECLARE t text;
 BEGIN
     FOREACH t IN ARRAY ARRAY['areas','roles','tipos_atencion','pueblos','comunidades_linguisticas','departamentos','municipios',
-        'presentaciones','medicamentos','usuarios','bitacora','pacientes','encargados','uniones_pacientes','atenciones',
+        'presentaciones','medicamentos','bitacora','pacientes','encargados','uniones_pacientes','atenciones',
         'recorridos_atencion','proximos_controles','signos_vitales','consultas','diagnosticos_consulta','recetas','recetas_detalle']
     LOOP
         PERFORM pg_temp.verificar((SELECT count(*) FROM pg_trigger WHERE tgrelid = ('public.' || t)::regclass AND tgname LIKE '%bloquear_borrado') > 0, 'DELETE: la tabla ' || t || ' tiene trigger de bloqueo');
@@ -18,6 +18,7 @@ BEGIN
     END LOOP;
 END
 $$;
+-- usuarios admite DELETE solo bajo reglas estrictas (migración 024; ver 24_eliminar_usuarios.sql)
 -- pacientes_encargados es la única que admite DELETE (corregir un vínculo equivocado)
 SELECT pg_temp.debe_pasar('DELETE FROM pacientes_encargados WHERE ctid = (SELECT ctid FROM pacientes_encargados LIMIT 1)', 'DELETE de un vínculo paciente-encargado se acepta');
 -- UPDATE de registros clínicos versionados

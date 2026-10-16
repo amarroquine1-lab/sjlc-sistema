@@ -35,7 +35,7 @@ export async function ingresar(pool: pg.Pool, usuario: string, contrasena: strin
     });
 
   const r = await pool.query(
-    `SELECT id_usuario, contrasena_hash, activo, debe_cambiar_contrasena,
+    `SELECT id_usuario, contrasena_hash, activo, debe_cambiar_contrasena, eliminado_el IS NOT NULL AS eliminado,
             bloqueado_hasta IS NOT NULL AND bloqueado_hasta > now() AS bloqueado,
             CEIL(EXTRACT(EPOCH FROM (bloqueado_hasta - now())) / 60)::int AS minutos
        FROM usuarios WHERE nombre_usuario = $1`,
@@ -54,7 +54,7 @@ export async function ingresar(pool: pg.Pool, usuario: string, contrasena: strin
   }
   if (!u.activo) {
     await verificarContraFalso(contrasena);
-    await fallo(u.id_usuario, "cuenta inactiva");
+    await fallo(u.id_usuario, u.eliminado ? "usuario eliminado" : "cuenta inactiva");
     throw new ErrorApi(401, "CREDENCIALES_INVALIDAS", MENSAJE_GENERICO);
   }
   if (!(await verificarContrasena(u.contrasena_hash, contrasena))) {

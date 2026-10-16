@@ -1,12 +1,13 @@
 # Manual de operación
 
-Sistema de Expedientes Clínicos, Centro de Salud San José La Comunidad (zona 10, Mixco). Versión 1.0.
+Sistema de Expedientes Clínicos, Centro de Salud San José La Comunidad (zona 10, Mixco). Versión 1.1.
 
 Para quien administra el servidor de producción. No se necesita un equipo de TI: todo se hace con unos pocos comandos y las secciones están escritas en el orden en que se usan.
 
 Convenciones:
 
 - Los comandos se escriben en una terminal del servidor de producción, con el usuario administrador (con `sudo`), dentro de `/opt/sjlc/sistema` salvo que se indique otra carpeta.
+- Los scripts de `scripts/` reciben al final el nombre del proyecto de Docker Compose, que en producción es siempre `sjlc` (`./scripts/migrar.sh sjlc`, `./scripts/respaldar.sh sjlc`). En las versiones 1.0 y 1.0.1 es **obligatorio** (sin él el script se detiene); desde la 1.1 es opcional, pero conviene escribirlo siempre.
 - Después de cada comando se indica **qué se espera ver**. Si el resultado es distinto, vaya a la sección 10 (solución de problemas).
 - En ningún paso de este manual se escriben contraseñas ni claves. Se generan en el servidor y se guardan solo en el archivo `.env`.
 
@@ -275,7 +276,7 @@ Los scripts leen `.env` y pasan las credenciales del dueño de la base únicamen
 1. Migraciones (crean las tablas y el rol `sjlc_app`):
 
    ```bash
-   ./scripts/migrar.sh
+   ./scripts/migrar.sh sjlc
    ```
 
    Esperado: una línea `Aplicada: NNN_...` por cada migración y el comando termina sin error. Es seguro repetirlo: las ya aplicadas se muestran como `Omitida`.
@@ -283,7 +284,7 @@ Los scripts leen `.env` y pasan las credenciales del dueño de la base únicamen
 2. Datos iniciales de producción (roles, áreas, tipos de atención, catálogos, municipios y los dos administradores):
 
    ```bash
-   ./scripts/sembrar.sh produccion
+   ./scripts/sembrar.sh produccion sjlc
    ```
 
    Esperado: líneas `Ejecutado: seed-produccion.sql`, `Ejecutado: seed-municipios.sql`, `Usuario creado: <ADMIN1_USUARIO>` y `Usuario creado: <ADMIN2_USUARIO>`. Si se repite, dice `Usuario omitido (ya existe)` y no duplica nada.
@@ -390,7 +391,7 @@ Prueba manual:
 
 ```bash
 cd /opt/sjlc/sistema
-./scripts/respaldar.sh
+./scripts/respaldar.sh sjlc
 ls -lh /opt/respaldos
 ```
 
@@ -407,7 +408,7 @@ Esperado: `Respaldo creado: /opt/respaldos/sjlc_<fecha>_<hora>.dump (<tamaño>)`
 2. Agregue esta línea (todos los días a las 2:00 a. m., hora de Guatemala):
 
    ```
-   0 2 * * * /opt/sjlc/sistema/scripts/respaldar.sh >> /opt/respaldos/respaldo.log 2>&1
+   0 2 * * * /opt/sjlc/sistema/scripts/respaldar.sh sjlc >> /opt/respaldos/respaldo.log 2>&1
    ```
 
 3. Compruebe al día siguiente:
@@ -475,7 +476,7 @@ Antes de restaurar de verdad, verifique que el respaldo se lee y se carga bien e
 
 Reemplaza **todo** el contenido de la base real con el del respaldo. Se pierde lo registrado después del respaldo. Haga esto solo con una decisión consciente.
 
-1. Si puede, haga primero un respaldo del estado actual (`./scripts/respaldar.sh`) aunque esté dañado.
+1. Si puede, haga primero un respaldo del estado actual (`./scripts/respaldar.sh sjlc`) aunque esté dañado.
 2. Detenga el sitio para que nadie escriba durante la restauración:
 
    ```bash
@@ -494,7 +495,7 @@ Reemplaza **todo** el contenido de la base real con el del respaldo. Se pierde l
 4. Reaplique las migraciones (omite las ya aplicadas y vuelve a fijar la contraseña del rol `sjlc_app`) y levante todo:
 
    ```bash
-   ./scripts/migrar.sh
+   ./scripts/migrar.sh sjlc
    docker compose up -d --wait
    curl -sk https://127.0.0.1/api/salud
    ```
@@ -515,7 +516,7 @@ Procedimiento:
 
    ```bash
    cd /opt/sjlc/sistema
-   ./scripts/respaldar.sh
+   ./scripts/respaldar.sh sjlc
    ```
 
 2. Traiga el código y los scripts de la versión nueva:
@@ -667,7 +668,7 @@ Efecto: **todas las sesiones abiertas quedan inválidas** y cada persona deberá
 
 ### Rotación de contraseñas de base de datos
 
-- `BD_CONTRASENA_APP`: cámbiela en `.env`, ejecute `./scripts/migrar.sh` (fija la nueva contraseña del rol `sjlc_app`) y luego `docker compose up -d backend`.
+- `BD_CONTRASENA_APP`: cámbiela en `.env`, ejecute `./scripts/migrar.sh sjlc` (fija la nueva contraseña del rol `sjlc_app`) y luego `docker compose up -d backend`.
 - `POSTGRES_PASSWORD`: cambiarla en `.env` **no** la cambia dentro de PostgreSQL. Si necesita rotarla, cámbiela primero en la base con `ALTER ROLE` y después en `.env`; consulte antes de hacerlo.
 
 ---

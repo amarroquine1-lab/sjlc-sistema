@@ -10,12 +10,14 @@ interface Props {
   /** Área de destino al enviar: el diálogo y su botón toman su color. */
   destino?: string;
   cargando?: boolean;
+  /** Mantiene apagado el botón de confirmar (por ejemplo, hasta escribir el nombre). */
+  confirmarDeshabilitado?: boolean;
   alConfirmar: () => void;
   alCancelar: () => void;
 }
 
 // Confirmación modal: el texto debe nombrar lo afectado ("¿Enviar a María L. (A-004587) a Farmacia?").
-export function Dialogo({ titulo, children, textoConfirmar, textoCancelar = "Cancelar", peligro, destino, cargando, alConfirmar, alCancelar }: Props) {
+export function Dialogo({ titulo, children, textoConfirmar, textoCancelar = "Cancelar", peligro, destino, cargando, confirmarDeshabilitado, alConfirmar, alCancelar }: Props) {
   const cancelar = useRef<HTMLButtonElement>(null);
   const contenedor = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -41,7 +43,7 @@ export function Dialogo({ titulo, children, textoConfirmar, textoCancelar = "Can
         <div>{children}</div>
         <div className="dialogo__acciones">
           <Boton variante="secundario" onClick={alCancelar} ref={cancelar}>{textoCancelar}</Boton>
-          <Boton variante={peligro ? "peligro" : "primario"} data-destino={destino} onClick={alConfirmar} cargando={cargando}>{textoConfirmar}</Boton>
+          <Boton variante={peligro ? "peligro" : "primario"} data-destino={destino} onClick={alConfirmar} cargando={cargando} disabled={confirmarDeshabilitado}>{textoConfirmar}</Boton>
         </div>
       </div>
     </div>

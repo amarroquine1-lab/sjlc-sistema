@@ -45,7 +45,8 @@ export function Emergencia() {
         <div className="encabezado-pantalla"><h1>Emergencia</h1><Boton variante="secundario" onClick={() => navegar("/recepcion")}>Volver a recepción</Boton></div>
         <Mensaje tipo="info">Registro rápido: solo lo que se sabe. Los datos faltantes se completan después y queda en la lista de datos incompletos.</Mensaje>
         {error && <Mensaje tipo="error">{error}</Mensaje>}
-        <form className="panel" onSubmit={revisar} noValidate>
+        <form className="panel formulario-registro formulario-registro--angosto" onSubmit={revisar} noValidate>
+          <div className="formulario-registro__cuerpo">
           <div className="campo">
             <label htmlFor="em-f">Sexo</label>
             <div className="opciones" role="radiogroup" aria-label="Sexo">
@@ -56,7 +57,8 @@ export function Emergencia() {
           <Campo etiqueta="Edad aproximada (años)" type="number" inputMode="numeric" min={0} max={120} value={edad} onChange={(e) => setEdad(e.target.value)} />
           <Campo etiqueta="Nombres (si se conocen)" value={nombres} onChange={(e) => setNombres(e.target.value)} autoComplete="off" />
           <Campo etiqueta="Apellidos (si se conocen)" value={apellidos} onChange={(e) => setApellidos(e.target.value)} autoComplete="off" />
-          <div className="acciones"><Boton type="submit" variante="peligro">Registrar emergencia</Boton><Boton variante="secundario" onClick={() => navegar("/recepcion")}>Cancelar</Boton></div>
+          </div>
+          <div className="acciones acciones--fijas"><Boton type="submit" variante="peligro">Registrar emergencia</Boton><Boton variante="secundario" onClick={() => navegar("/recepcion")}>Cancelar</Boton></div>
         </form>
       </main>
       {confirmar && (

@@ -31,7 +31,7 @@ cargar_entorno() {
     *) echo "Error: ENTORNO en .env debe ser desarrollo, pruebas o produccion" >&2; exit 1 ;;
   esac
   PROY=()
-  [ -n "$PROYECTO" ] && PROY=(-p "$PROYECTO")
+  if [ -n "$PROYECTO" ]; then PROY=(-p "$PROYECTO"); fi
 }
 
 # En desarrollo y pruebas el código puede haber cambiado: reconstruye la imagen (usa caché)

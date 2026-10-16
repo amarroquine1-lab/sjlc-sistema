@@ -77,6 +77,6 @@ export interface AtencionHistorial {
   proximos_controles: { area: string; descripcion: string; fecha_sugerida: string | null; estado: string }[];
 }
 export interface HistorialPaciente { paciente: Paciente; atenciones: AtencionHistorial[]; total: number; pagina: number; por_pagina: number }
-export interface UsuarioFila { id_usuario: number; nombre_usuario: string; nombres: string; apellidos: string; id_rol: number; rol: string; area: string | null; activo: boolean; debe_cambiar_contrasena: boolean; intentos_fallidos: number; bloqueado_hasta: string | null; ultimo_ingreso: string | null }
+export interface UsuarioFila { id_usuario: number; nombre_usuario: string; nombres: string; apellidos: string; id_rol: number; rol: string; area: string | null; activo: boolean; debe_cambiar_contrasena: boolean; intentos_fallidos: number; bloqueado_hasta: string | null; ultimo_ingreso: string | null; tiene_registros: boolean; es_ultimo_admin: boolean; puede_eliminar: boolean; motivo_no_eliminar: string | null; modo_eliminacion: "borrar" | "quitar"; eliminado_el: string | null }
 export interface FilaBitacora { id_bitacora: number; fecha_hora: string; usuario: string | null; accion: string; entidad: string; id_registro: number | null; direccion_ip: string | null; detalle: string | null }
 export interface EstadoColas { areas: { area: string; en_espera: number; en_atencion: number; espera_maxima_minutos: number; atendiendo: string }[]; atenciones_abiertas: number; sesiones_activas: number }

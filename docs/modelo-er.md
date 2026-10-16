@@ -2,7 +2,7 @@
 
 Centro de Salud San José La Comunidad, zona 10 de Mixco (SJLC). **Versión 1.0.**
 
-Este documento describe la base de datos tal como queda después de aplicar las 23 migraciones de `db/migraciones/` (`001_extensiones_y_roles_bd.sql` a `023_catalogos_oficiales_ine.sql`). Es la referencia técnica del modelo: diagrama entidad-relación, diccionario de datos, correlativos, reglas que aplica la propia base, roles y permisos.
+Este documento describe la base de datos tal como queda después de aplicar las 25 migraciones de `db/migraciones/` (`001_extensiones_y_roles_bd.sql` a `025_usuarios_eliminados.sql`). Es la referencia técnica del modelo: diagrama entidad-relación, diccionario de datos, correlativos, reglas que aplica la propia base, roles y permisos.
 
 - Motor: PostgreSQL 16 (`postgres:16-alpine`), esquema `public`.
 - Zona horaria de la base: `America/Guatemala` (fijada con `ALTER DATABASE ... SET timezone` en la migración 001). Todas las horas son `timestamptz`.
@@ -432,8 +432,9 @@ Catálogo de apoyo. Desde la migración 021 el nombre de la vacuna aplicada se e
 | debe_cambiar_contrasena | boolean | no | | Por omisión `true`: toda contraseña inicial o temporal obliga a cambiarla |
 | intentos_fallidos | smallint | no | | Por omisión 0, `CHECK (>= 0)` |
 | bloqueado_hasta | timestamptz | sí | | Tras 5 intentos fallidos, bloqueo de 15 minutos |
-| activo | boolean | no | | Por omisión `true`. Un usuario se desactiva, no se borra |
+| activo | boolean | no | | Por omisión `true`. Un usuario se desactiva; también se puede eliminar (ver 5.1) |
 | ultimo_ingreso | timestamptz | sí | | |
+| eliminado_el | timestamptz | sí | | Nulo mientras el usuario existe. Si tiene fecha, el usuario fue **eliminado** con actividad: queda inactivo (`CHECK`), no ingresa, no se modifica ni se reactiva y conserva su fila para que su nombre siga en los registros (ver 5.1) |
 | fecha_creacion | timestamptz | no | | |
 
 Índice: `ix_usuarios_id_rol`. Existe una cuenta interna `sistema` (rol administrador, inactiva y con una contraseña que no se puede usar) que firma en la bitácora las tareas automáticas, como el cierre del día. No se puede modificar desde la aplicación (sección 5.6).
@@ -833,7 +834,11 @@ Códigos de error: las violaciones de trazabilidad usan `23001` (`restrict_viola
 **Exención del dueño.** Las migraciones y los seeds corren con el usuario dueño de las tablas. Las validaciones de permisos y de flujo de las secciones 5.4 a 5.10 no se le aplican (cada función compara `current_user` con el dueño de la tabla). Sí se aplican a todos, dueño incluido: los bloqueos de borrado y de edición (5.1 a 5.3), el cierre automático de tramos (5.8), la validación de farmacia (5.11) y el completado de textos (5.12). Las únicas cargas que los suspendieron fueron las conversiones de una sola vez de las migraciones 018 y 021, hechas por el dueño con `DISABLE TRIGGER USER` dentro de la propia migración.
 
 ### 5.1 Nada se borra
-- `bloquear_borrado()`: `BEFORE DELETE` en todas las tablas del sistema excepto `pacientes_encargados`. Los registros se desactivan (`activo`, `vigente`) o se corrigen con una versión nueva.
+- **Excepción: `usuarios`** (migraciones 024 y 025). Un usuario puede eliminarse de dos maneras, según su actividad. `usuario_tiene_registros(id)` recorre las claves foráneas hacia `usuarios` (atenciones, pacientes, signos, consultas, recetas, vacunas, entregas, sesiones, bitácora, etc.), de modo que cubre también las tablas que se agreguen después; un intento fallido de ingreso ya cuenta como actividad.
+  - **Sin actividad** (nunca ingresó y `usuario_tiene_registros` es falso): se **borra por completo**. `validar_eliminacion_usuario()` (`BEFORE DELETE`) solo lo permite en ese caso y exige que quien opera sea un administrador activo (el dueño de la base también puede).
+  - **Con actividad**: la fila **no se borra**; se marca `eliminado_el` y `activo = false`. `validar_eliminacion_logica_usuario()` (`BEFORE UPDATE`) hace que un usuario eliminado no se pueda modificar ni reactivar (ni el dueño de la base), y su nombre de usuario sigue reservado. El nombre se conserva en todos los registros donde aparece porque la fila sigue existiendo.
+  - **En ambos casos** se rechaza eliminar la cuenta `sistema`, eliminarse a uno mismo y eliminar al último administrador activo (23001, `restrict_violation`; 42501 si no es administrador). La bitácora anota la acción `eliminar` con quién la hizo y los datos del usuario (sin el hash); en la eliminación lógica se ve el cambio de `eliminado_el`.
+- `bloquear_borrado()`: `BEFORE DELETE` en todas las tablas del sistema excepto `pacientes_encargados` y `usuarios`. Los registros se desactivan (`activo`, `vigente`) o se corrigen con una versión nueva.
 - La misma función, `BEFORE TRUNCATE`, en todas las tablas del sistema **incluida** `pacientes_encargados` (sus borrados deben quedar en la bitácora uno por uno).
 - `migraciones_aplicadas` no lleva estos triggers, pero la aplicación no tiene ningún privilegio sobre ella.
 
@@ -922,7 +927,7 @@ A esto se suman los únicos de `id_receta` (una entrega por receta) y de `id_rec
 | areas, roles, tipos_atencion, pueblos, comunidades_linguisticas, departamentos, municipios | sí / sí | | | |
 | colonias_sectores | sí / sí | | I, U, D | |
 | presentaciones, medicamentos, vacunas | sí / sí | | I, U | |
-| usuarios | sí / sí | | I, U, D | validar_cambio_usuarios, proteger_usuario_sistema |
+| usuarios | solo vaciado | | I, U, D | validar_cambio_usuarios, proteger_usuario_sistema, validar_eliminacion_logica_usuario (UPDATE), validar_eliminacion_usuario (DELETE) |
 | sesiones | sí / sí | | | validar_cambio_sesiones |
 | bitacora | sí / sí | bloqueada | | validar_bitacora_directa |
 | pacientes | sí / sí | | I, U, D | bloquear_cambio_paciente_principal, impedir_union_encadenada, verificar_union_paciente_principal |
@@ -957,9 +962,9 @@ La contraseña de `sjlc_app` no está en ningún archivo SQL. El migrador la fij
 - `REVOKE CONNECT, TEMPORARY ON DATABASE ... FROM PUBLIC` y `GRANT CONNECT` solo a `sjlc_app`.
 - `REVOKE CREATE ON SCHEMA public FROM PUBLIC`: nadie crea objetos salvo el dueño. `sjlc_app` solo tiene `USAGE` en el esquema, sin DDL.
 - `REVOKE ALL` sobre tablas y secuencias para `PUBLIC`, y `ALTER DEFAULT PRIVILEGES` que deja sin privilegios a todo objeto futuro: una tabla nueva queda cerrada hasta que su migración conceda lo necesario.
-- Funciones: `sjlc_app` solo puede ejecutar `unaccent_inmutable(text)` y `formatear_correlativo(text, bigint)`. Las funciones de trigger no se pueden invocar directamente.
+- Funciones: `sjlc_app` solo puede ejecutar `unaccent_inmutable(text)`, `formatear_correlativo(text, bigint)` y `usuario_tiene_registros(integer)`. Las funciones de trigger no se pueden invocar directamente.
 - Secuencias: `USAGE` para los correlativos (`seq_codigo_paciente`, `seq_numero_atencion`, `seq_numero_orden_farmacia`).
-- `sjlc_app` no tiene `TRUNCATE` en ninguna tabla y solo tiene `DELETE` en `pacientes_encargados`.
+- `sjlc_app` no tiene `TRUNCATE` en ninguna tabla y solo tiene `DELETE` en `pacientes_encargados` y en `usuarios` (esta última con las reglas del trigger `validar_eliminacion_usuario`). Puede ejecutar también `usuario_tiene_registros(integer)`.
 
 ### 6.3 Privilegios de `sjlc_app` por tabla
 `SELECT` en todas las tablas del sistema (no en `migraciones_aplicadas`). `INSERT` y `UPDATE` se conceden **por columna**: la aplicación no puede fijar ids, códigos correlativos, fechas de creación ni horas que pone la base, ni reescribir registros clínicos.
@@ -971,7 +976,7 @@ La contraseña de `sjlc_app` no está en ningún archivo SQL. El migrador la fij
 | presentaciones | nombre_presentacion | | |
 | medicamentos | nombre_medicamento, id_presentacion, concentracion | activo | |
 | vacunas | nombre_vacuna, dosis_totales | activo | |
-| usuarios | nombre_usuario, nombres, apellidos, id_rol, contrasena_hash, debe_cambiar_contrasena, activo | las anteriores + intentos_fallidos, bloqueado_hasta, ultimo_ingreso | |
+| usuarios | nombre_usuario, nombres, apellidos, id_rol, contrasena_hash, debe_cambiar_contrasena, activo | las anteriores + intentos_fallidos, bloqueado_hasta, ultimo_ingreso, eliminado_el | |
 | sesiones | id_usuario, direccion_ip, agente_usuario | fecha_hora_ultima_actividad, revocada_en, motivo_revocacion | |
 | bitacora | id_usuario, nombre_usuario_intentado, accion, entidad, id_registro, direccion_ip, valor_anterior, valor_nuevo, detalle | | |
 | pacientes | nombres, apellidos, fecha_nacimiento, edad_aproximada_anios, sexo, cui, telefono, direccion, id_municipio_residencia, zona_residencia, id_colonia_sector, id_municipio_nacimiento, id_pueblo, id_comunidad_linguistica, numero_registro_libro, datos_incompletos, id_usuario | las mismas sin id_usuario, + id_paciente_principal | |
@@ -1087,3 +1092,5 @@ Con `gin_trgm_ops`, PostgreSQL resuelve un `LIKE '%...%'` con el índice GIN en 
 | 021_vacuna_texto_libre | `nombre_vacuna_texto`; `id_vacuna` pasa a ser opcional; índice único de dosis por nombre normalizado |
 | 022_motivo_envio | `motivo_envio` en recorridos_atencion |
 | 023_catalogos_oficiales_ine | «No indica» pasa al código 99 (valor por omisión); corrige K'iche'/Kaqchikel y los códigos de pueblo anteriores a la numeración del INE |
+| 024_eliminar_usuarios | `usuario_tiene_registros`, `validar_eliminacion_usuario`; `DELETE` en `usuarios` solo para cuentas sin actividad |
+| 025_usuarios_eliminados | `eliminado_el` en usuarios; eliminación lógica de usuarios con actividad; la bitácora la anota como `eliminar` |
