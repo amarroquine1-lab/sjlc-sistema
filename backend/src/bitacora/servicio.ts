@@ -17,7 +17,8 @@ export type AccionBitacora =
   | "cierre_dia"
   | "buscar_paciente"
   | "ver_paciente"
-  | "atender_directo";
+  | "atender_directo"
+  | "devolver_a_cola";
 
 export interface EventoBitacora {
   accion: AccionBitacora;

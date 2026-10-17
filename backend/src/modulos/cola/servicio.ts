@@ -69,22 +69,48 @@ function fila(f: any) {
   return { ...resto, edad };
 }
 
-export async function verCola(pool: pg.Pool, clave: ClaveArea, idUsuario: number) {
+// La atención que esta persona tiene en curso. Administración puede tener una por área (se busca en el área indicada);
+// los roles operativos, una sola en cualquier área. Es el mismo criterio de la base de datos, así la validación de
+// "llamar" y lo que muestran las pantallas nunca se contradicen.
+interface EnCurso { numero_atencion: string; nombre_area: string; paciente: string }
+async function atencionEnCurso(c: pg.Pool | pg.PoolClient, idUsuario: number, nombreArea: string | null = null): Promise<EnCurso | null> {
+  const r = await c.query(
+    `SELECT a.numero_atencion, ar.nombre_area,
+            CASE WHEN p.nombres IS NULL THEN 'un paciente sin identificar'
+                 ELSE split_part(p.nombres, ' ', 1) || coalesce(' ' || nullif(left(p.apellidos, 1), '') || '.', '') END AS paciente
+       FROM recorridos_atencion r JOIN atenciones a USING (id_atencion) JOIN pacientes p USING (id_paciente) JOIN areas ar USING (id_area)
+      WHERE r.id_usuario = $1 AND r.fecha_hora_inicio IS NOT NULL AND r.fecha_hora_salida IS NULL AND ($2::text IS NULL OR ar.nombre_area = $2) LIMIT 1`, [idUsuario, nombreArea]);
+  return r.rows[0] ?? null;
+}
+const nombreDeArea = (n: string) => n.charAt(0).toUpperCase() + n.slice(1);
+export function mensajeYaAtiende(e: EnCurso): string {
+  return `Ya tiene a ${e.paciente} (${e.numero_atencion}) en atención en ${nombreDeArea(e.nombre_area)}. Termine con él antes de llamar a otro.`;
+}
+
+export async function verCola(pool: pg.Pool, clave: ClaveArea, idUsuario: number, rol = "") {
   const r = await pool.query(
     `${FILAS} WHERE r.id_area = (SELECT id_area FROM areas WHERE nombre_area = $1) AND r.fecha_hora_salida IS NULL AND a.estado IN ('en_espera', 'enviado', 'en_atencion')
       ORDER BY (r.fecha_hora_inicio IS NOT NULL), ta.es_emergencia DESC, r.fecha_hora_entrada, r.id_recorrido_atencion`, [AREAS[clave]]);
   // Farmacia recibe datos mínimos: el motivo de envío (texto libre del área anterior) no se le muestra
   const filas = r.rows.map(fila).map((f) => (clave === "farmacia" ? { ...f, motivo_envio: null } : f));
+  const mia = filas.find((f) => f.en_atencion && f.id_usuario === idUsuario) ?? null;
+  // Si la persona tiene a alguien en atención en OTRA área, la pantalla lo dice (y a dónde ir) en lugar de mostrar "nadie".
+  let otra: { numero_atencion: string; area: string; clave: ClaveArea | null; paciente: string } | null = null;
+  if (!mia && rol !== "administrador") {
+    const e = await atencionEnCurso(pool, idUsuario);
+    if (e) otra = { numero_atencion: e.numero_atencion, area: nombreDeArea(e.nombre_area), clave: claveDeArea(e.nombre_area), paciente: e.paciente };
+  }
   return {
     area: AREAS[clave], clave,
     en_espera: filas.filter((f) => !f.en_atencion),
     en_atencion: filas.filter((f) => f.en_atencion),
-    mi_atencion: filas.find((f) => f.en_atencion && f.id_usuario === idUsuario) ?? null,
+    mi_atencion: mia,
+    mi_atencion_otra_area: otra,
   };
 }
 
 // "Llamar siguiente": asignación atómica. FOR UPDATE SKIP LOCKED garantiza que dos personas nunca toman a la misma;
-// el índice único ux_recorridos_usuario_en_atencion garantiza que una persona no atiende a dos a la vez.
+// el índice único (usuario, área) y el disparador de roles operativos garantizan que una persona no atiende a dos a la vez.
 // Con idAtencion se toma a ese paciente de la lista ("Atender"); sin él, al siguiente según el orden. En ambos casos es atómico.
 export async function llamarSiguiente(pool: pg.Pool, actor: UsuarioActor, clave: ClaveArea, idAtencion: number | null = null) {
   try {
@@ -92,8 +118,9 @@ export async function llamarSiguiente(pool: pg.Pool, actor: UsuarioActor, clave:
       // Las llamadas de una misma persona se hacen una por una: un doble clic no aparta pacientes de la cola.
       const turno = await c.query("SELECT pg_try_advisory_xact_lock(7340100, $1) AS ok", [actor.idUsuario]);
       if (!turno.rows[0].ok) throw new ErrorApi(409, "LLAMADA_EN_CURSO", "Ya hay una llamada en curso. Espere un momento.");
-      const yaAtiende = await c.query("SELECT 1 FROM recorridos_atencion WHERE id_usuario = $1 AND fecha_hora_inicio IS NOT NULL AND fecha_hora_salida IS NULL", [actor.idUsuario]);
-      if (yaAtiende.rowCount) throw new ErrorApi(409, "YA_ATIENDE", "Ya tiene un paciente en atención. Termine con él antes de llamar al siguiente.");
+      const yaAtiende = await atencionEnCurso(c, actor.idUsuario, actor.rol === "administrador" ? AREAS[clave] : null);
+      if (yaAtiende) throw new ErrorApi(409, "YA_ATIENDE", mensajeYaAtiende(yaAtiende),
+        { numero_atencion: yaAtiende.numero_atencion, area: nombreDeArea(yaAtiende.nombre_area), clave: claveDeArea(yaAtiende.nombre_area), paciente: yaAtiende.paciente });
       // Se bloquea primero la atención (SKIP LOCKED: dos personas nunca toman a la misma) y después su tramo.
       const cand = await c.query(
         `SELECT a.id_atencion FROM atenciones a JOIN tipos_atencion ta ON ta.id_tipo_atencion = a.id_tipo_atencion
@@ -131,7 +158,10 @@ export async function llamarSiguiente(pool: pg.Pool, actor: UsuarioActor, clave:
     if (id === null) throw new ErrorApi(404, "COLA_VACIA", "No hay pacientes esperando en esta área.");
     return panelAtencion(pool, actor, id);
   } catch (error) {
-    if ((error as { constraint?: string }).constraint === "ux_recorridos_usuario_en_atencion") throw new ErrorApi(409, "YA_ATIENDE", "Ya tiene un paciente en atención.");
+    if (["ux_recorridos_usuario_area_en_atencion", "ux_recorridos_operativo_un_paciente"].includes((error as { constraint?: string }).constraint ?? "")) {
+      const e = await atencionEnCurso(pool, actor.idUsuario, actor.rol === "administrador" ? AREAS[clave] : null);
+      throw new ErrorApi(409, "YA_ATIENDE", e ? mensajeYaAtiende(e) : "Ya tiene un paciente en atención. Termine con él antes de llamar a otro.");
+    }
     throw error;
   }
 }
@@ -141,7 +171,7 @@ async function tramoActual(c: pg.Pool | pg.PoolClient, actor: UsuarioActor, idAt
   // Orden de bloqueo común a toda la cola: primero la atención y después su tramo (evita interbloqueos con el cierre del día).
   if (bloquear) await c.query("SELECT 1 FROM atenciones WHERE id_atencion = $1 FOR UPDATE", [idAtencion]);
   const r = await c.query(
-    `SELECT r.id_recorrido_atencion, r.id_usuario, r.fecha_hora_inicio IS NOT NULL AS en_atencion, ar.nombre_area, a.estado, ta.nombre_tipo_atencion AS tipo, r.motivo_envio
+    `SELECT r.id_recorrido_atencion, r.id_usuario, r.fecha_hora_inicio, r.fecha_hora_inicio IS NOT NULL AS en_atencion, ar.nombre_area, a.estado, ta.nombre_tipo_atencion AS tipo, r.motivo_envio
        FROM recorridos_atencion r JOIN areas ar ON ar.id_area = r.id_area JOIN atenciones a ON a.id_atencion = r.id_atencion JOIN tipos_atencion ta ON ta.id_tipo_atencion = a.id_tipo_atencion
       WHERE r.id_atencion = $1 AND r.fecha_hora_salida IS NULL ${bloquear ? "FOR UPDATE OF r" : ""}`, [idAtencion]);
   const t = r.rows[0];
@@ -222,6 +252,34 @@ export async function enviar(pool: pg.Pool, actor: UsuarioActor, idAtencion: num
   });
   const e = await pool.query("SELECT numero_atencion, estado FROM atenciones WHERE id_atencion = $1", [idAtencion]);
   return { id_atencion: idAtencion, numero_atencion: e.rows[0].numero_atencion, estado: e.rows[0].estado, destino };
+}
+
+// "Devolver a la cola": quien llamó al paciente equivocado lo regresa a la cola de la misma área, con su hora de llegada original.
+// Se reabre el mismo tramo (sin inicio ni usuario), así no cuenta como atención ni altera los tiempos. Si en ese tramo ya se guardó
+// algún dato clínico, no se permite: lo guardado no se borra.
+export async function devolverALaCola(pool: pg.Pool, actor: UsuarioActor, idAtencion: number) {
+  return conTransaccion(pool, { idUsuario: actor.idUsuario, direccionIp: actor.ip }, async (c) => {
+    const t = await tramoActual(c, actor, idAtencion, true);
+    if (!t.en_atencion) throw new ErrorApi(409, "NO_EN_ATENCION", "Este paciente no está en atención; no hay nada que devolver.");
+    const guardado = await c.query(
+      `SELECT (SELECT count(*) FROM signos_vitales WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM consultas WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM recetas WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM evaluaciones_nutricionales WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM vacunas_aplicadas WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM proximos_controles WHERE id_atencion = $1 AND fecha_creacion >= $2)
+            + (SELECT count(*) FROM entregas_farmacia e JOIN recetas rc USING (id_receta) WHERE rc.id_atencion = $1 AND e.fecha_hora >= $2) AS total`,
+      [idAtencion, t.fecha_hora_inicio]);
+    if (Number(guardado.rows[0].total) > 0) {
+      throw new ErrorApi(409, "YA_HAY_DATOS", "No se puede devolver a la cola: ya se guardaron datos de este paciente en esta área. Termine la atención y envíelo a donde corresponda.");
+    }
+    await c.query("UPDATE recorridos_atencion SET fecha_hora_inicio = NULL, id_usuario = NULL WHERE id_recorrido_atencion = $1", [t.id_recorrido_atencion]);
+    await c.query("UPDATE atenciones SET estado = 'en_espera' WHERE id_atencion = $1", [idAtencion]);
+    await registrarEventoEn(c, { accion: "devolver_a_cola", entidad: "atenciones", idRegistro: idAtencion, idUsuario: actor.idUsuario, direccionIp: actor.ip,
+      detalle: `área ${t.nombre_area}; lo atendía el usuario ${t.id_usuario}` });
+    const e = await c.query("SELECT numero_atencion FROM atenciones WHERE id_atencion = $1", [idAtencion]);
+    return { id_atencion: idAtencion, numero_atencion: e.rows[0].numero_atencion as string, area: t.nombre_area as string };
+  });
 }
 
 // Cierre del día: toda atención abierta pasa a "no concluida". Lo ejecuta el sistema (usuario "sistema") o un administrador.

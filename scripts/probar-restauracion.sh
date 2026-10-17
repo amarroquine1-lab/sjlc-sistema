@@ -69,8 +69,9 @@ r="$(psql_pru "$destino" "SELECT count(*) FROM pg_trigger WHERE tgname LIKE '%bl
 r="$(psql_pru postgres "SELECT setconfig::text FROM pg_db_role_setting s JOIN pg_database d ON d.oid=s.setdatabase WHERE d.datname='$destino'")"
 grep -q 'America/Guatemala' <<< "$r"; resultado $? "la zona horaria de la base restaurada es America/Guatemala" "$r"
 # migrar sobre la base restaurada: omite todo y fija la contraseña de sjlc_app
+previas="$(psql_pru "$destino" "SELECT count(*) FROM migraciones_aplicadas")"
 salida="$(docker compose "${PRU[@]}" run --rm -T -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB="$destino" backend npm run migrar 2>&1)"; codigo=$?
-[ $codigo = 0 ] && [ "$(grep -c '^Omitida' <<< "$salida")" = 8 ]; resultado $? "migrar sobre la base restaurada omite las 8 y fija la contraseña de sjlc_app" "$salida"
+[ $codigo = 0 ] && [ "$(grep -c '^Omitida' <<< "$salida")" = "$previas" ]; resultado $? "migrar sobre la base restaurada omite las ya aplicadas ($previas) y fija la contraseña de sjlc_app" "$salida"
 r="$(docker compose "${PRU[@]}" exec -T -e PGPASSWORD bd sh -c 'psql -h "$(hostname -i)" -U sjlc_app -d '"$destino"' -tAc "SELECT count(*) FROM pacientes"' 2>&1)"
 [ "$r" -ge 1 ] 2> /dev/null; resultado $? "sjlc_app inicia sesión en la base restaurada y lee pacientes" "$r"
 r="$(docker compose "${PRU[@]}" exec -T -e PGPASSWORD bd sh -c 'psql -h "$(hostname -i)" -U sjlc_app -d '"$destino"' -tAc "DELETE FROM pacientes"' 2>&1)"

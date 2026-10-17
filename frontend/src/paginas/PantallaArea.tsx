@@ -1,5 +1,6 @@
 import { PhoneCall } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, ErrorDeApi } from "../api/cliente";
 import type { Cola, FilaCola, OpcionEnvio, PanelAtencion } from "../api/tipos";
 import { AvisoVencimiento } from "../componentes/AvisoVencimiento";
@@ -29,10 +30,12 @@ const INTERVALO_MS = 5000;
 export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true }: Props) {
   const [cola, setCola] = useState<Cola | null>(null);
   const [panel, setPanel] = useState<PanelAtencion | null>(null);
+  const navegar = useNavigate();
   const [mensaje, setMensaje] = useState<{ tipo: "exito" | "error" | "aviso"; texto: string } | null>(null);
   const [envio, setEnvio] = useState<OpcionEnvio | null>(null);
   const [motivo, setMotivo] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [devolviendo, setDevolviendo] = useState(false);
   const idActual = useRef<number | null>(null);
 
   const cargarPanel = useCallback(async (id: number) => {
@@ -79,6 +82,17 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
     finally { setCargando(false); setEnvio(null); setMotivo(""); }
   };
 
+  const confirmarDevolucion = async () => {
+    if (!panel) return;
+    setCargando(true);
+    try {
+      await api.post(`/api/atenciones/${panel.atencion.id_atencion}/devolver`);
+      setMensaje({ tipo: "exito", texto: `${nombreBreve(panel.paciente)} (${panel.atencion.numero_atencion}) volvió a la cola de ${titulo}.` });
+      idActual.current = null; setPanel(null);
+    } catch (e) { setMensaje({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo devolver al paciente a la cola." }); }
+    finally { setCargando(false); setDevolviendo(false); await cargarCola(false); }
+  };
+
   const recargar = async () => { if (panel) await cargarPanel(panel.atencion.id_atencion); };
   // Cierre hecho dentro del panel del área (farmacia: entregar y finalizar): se despide al paciente y se refresca la cola.
   const terminar = async (texto: string) => {
@@ -105,7 +119,7 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
         </div>
         {!atendiendo && (
           <div className="fila-cola__accion">
-            <Boton variante="acento" className="boton--pequeno" aria-label={`Atender a ${nombreBreve(f)} (${f.numero_atencion})`} disabled={cargando || Boolean(cola?.mi_atencion)} onClick={() => void llamar(f.id_atencion)}>Atender</Boton>
+            <Boton variante="acento" className="boton--pequeno" aria-label={`Atender a ${nombreBreve(f)} (${f.numero_atencion})`} disabled={cargando || ocupado} onClick={() => void llamar(f.id_atencion)}>Atender</Boton>
           </div>
         )}
         <div className="etiquetas">
@@ -120,6 +134,8 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
       </li>
     );
   };
+  const otraArea = cola?.mi_atencion_otra_area ?? null;
+  const ocupado = Boolean(cola?.mi_atencion) || Boolean(otraArea);
   const otros = cola?.en_atencion.filter((f) => f.id_atencion !== cola.mi_atencion?.id_atencion) ?? [];
 
   const Ilustracion = ILUSTRACION_DE_AREA[clave];
@@ -130,8 +146,14 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
         <div className="encabezado-pantalla">
           <span className="encabezado-pantalla__il">{Ilustracion && <Ilustracion tamano={84} />}</span>
           <h1>{titulo}</h1>
-          <Boton variante="acento" icono={<PhoneCall aria-hidden="true" size={22} />} onClick={() => void llamar()} cargando={cargando && !envio} disabled={Boolean(cola?.mi_atencion)}>Llamar siguiente</Boton>
+          <Boton variante="acento" icono={<PhoneCall aria-hidden="true" size={22} />} onClick={() => void llamar()} cargando={cargando && !envio} disabled={ocupado}>Llamar siguiente</Boton>
         </div>
+        {otraArea && (
+          <Mensaje tipo="aviso">
+            Tiene a {otraArea.paciente} ({otraArea.numero_atencion}) en atención en {otraArea.area}. Termine con él antes de llamar a otro.
+            {otraArea.clave && <> <Boton variante="secundario" className="boton--pequeno" onClick={() => navegar(`/${otraArea.clave}`)}>Ir a {otraArea.area}</Boton></>}
+          </Mensaje>
+        )}
         {mensaje && <Mensaje tipo={mensaje.tipo}>{mensaje.texto}</Mensaje>}
         <div className="dos-columnas">
           <section className="cola" aria-label="Cola de espera">
@@ -159,6 +181,9 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
                     {panel.atencion.es_emergencia && <Estado valor="emergencia" />} <Estado valor={panel.atencion.estado} />
                     {panel.paciente.datos_incompletos && <span className="estado estado--en_espera">Datos incompletos</span>}
                   </div>
+                  <div className="cabecera-paciente__devolver">
+                    <Boton variante="secundario" className="boton--pequeno" onClick={() => setDevolviendo(true)}>Devolver a la cola</Boton>
+                  </div>
                 </header>
                 <div className="panel__cuerpo">
                   {panel.atencion.motivo_envio && <Mensaje tipo="aviso"><strong>Motivo del envío:</strong> {panel.atencion.motivo_envio}</Mensaje>}
@@ -179,6 +204,12 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
           </section>
         </div>
       </main>
+      {devolviendo && panel && (
+        <Dialogo titulo="Devolver a la cola" textoConfirmar="Devolver a la cola" cargando={cargando} alConfirmar={() => void confirmarDevolucion()} alCancelar={() => setDevolviendo(false)}>
+          <p>¿Devolver a {nombreBreve(panel.paciente)} ({panel.atencion.numero_atencion}) a la cola de {titulo}?</p>
+          <p>Vuelve a su lugar en la cola y otra persona (o usted) podrá llamarlo. Si capturó datos sin guardar, se descartarán. Si ya guardó datos de este paciente aquí, no se podrá devolver.</p>
+        </Dialogo>
+      )}
       {envio && panel && (
         <Dialogo destino={envio.destino} titulo={envio.destino === "finalizar" ? "Finalizar la atención" : "Enviar al paciente"} textoConfirmar={envio.destino === "finalizar" ? "Finalizar" : `Enviar a ${envio.etiqueta}`} cargando={cargando} alConfirmar={() => void confirmarEnvio()} alCancelar={() => { setEnvio(null); setMotivo(""); }}>
           <p>{envio.destino === "finalizar"

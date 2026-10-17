@@ -267,6 +267,7 @@ details.mas-datos[open] > summary { margin-bottom: 8px; }
 .panel__cerrar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .cabecera-paciente { padding: 22px 32px 18px; border-bottom: 1px solid var(--linea); position: sticky; top: 86px; z-index: 5; background: var(--area-fondo); border-radius: var(--radio-tarjeta) var(--radio-tarjeta) 0 0; }
 .cabecera-paciente h2 { font-size: 30px; font-weight: 700; margin-bottom: 4px; color: var(--area); }
+.cabecera-paciente__devolver { margin-top: 10px; }
 .cabecera-paciente__meta { color: var(--tinta); margin: 0 0 8px; font-size: 16px; display: flex; flex-wrap: wrap; gap: 2px 14px; }
 .cabecera-paciente--con-cierre { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .seccion { padding: 20px 0 8px; border-top: 1px solid var(--linea); margin-top: 20px; }

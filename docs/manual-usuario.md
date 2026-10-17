@@ -83,6 +83,10 @@ Si el paciente se fue sin terminar, abra la atención y presione **Se retiró**,
 6. Presione **Enviar a…** y elija a dónde va: **Doctor**, **Nutrición** o **Vacunación**. El sistema le pregunta "¿Enviar a … (A-…) a …?" (imagen `09-signos-enviar.png`). Puede escribir un **motivo** breve, opcional.
 7. Confirme. El paciente pasa a la cola del área elegida.
 
+**Si llamó al paciente equivocado:** presione **Devolver a la cola** (junto al nombre del paciente) y confirme. El paciente vuelve a su lugar en la cola de esa área, con su hora de llegada original, y usted queda libre para llamar a otro. Lo que haya escrito sin guardar se descarta. Si ya guardó datos de ese paciente en el área, el sistema no permite devolverlo. Esto aplica igual en todas las áreas.
+
+**Cuántos pacientes a la vez:** cada persona atiende a un paciente a la vez. Administración puede tener uno en atención en cada área (por ejemplo, uno en Signos y otro en Doctor), pero nunca dos en la misma.
+
 Si se equivoca en un dato, vuelva a guardar el valor correcto: el anterior no se borra, queda como historial.
 
 ---

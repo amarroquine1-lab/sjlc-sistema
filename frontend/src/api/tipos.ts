@@ -34,7 +34,8 @@ export interface FilaCola {
   estado: string; tipo: string; es_emergencia: boolean; id_paciente: number; codigo_paciente: string; nombres: string | null; apellidos: string | null;
   sexo: "F" | "M"; datos_incompletos: boolean; espera_minutos: number; entrada_hora: string; pendientes: number; edad: string | null; motivo_envio: string | null;
 }
-export interface Cola { area: string; clave: string; en_espera: FilaCola[]; en_atencion: FilaCola[]; mi_atencion: FilaCola | null }
+export interface Cola { area: string; clave: string; en_espera: FilaCola[]; en_atencion: FilaCola[]; mi_atencion: FilaCola | null;
+  mi_atencion_otra_area?: { numero_atencion: string; area: string; clave: string | null; paciente: string } | null }
 export interface OpcionEnvio { destino: string; etiqueta: string; sugerido: boolean; requiere_receta?: boolean }
 export interface Signos {
   id_signo_vital: number; peso_lb: number | null; talla_cm: number | null; temperatura_c: number | null; presion_sistolica: number | null;

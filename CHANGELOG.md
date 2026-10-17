@@ -1,5 +1,19 @@
 # Notas de cambios
 
+## v1.2
+
+### Novedades
+- **Regla de atención por rol.** Administración puede tener un paciente en atención por área al mismo tiempo (por ejemplo, uno en Signos y otro en Doctor), nunca dos en la misma área. Los demás roles siguen atendiendo a un solo paciente a la vez.
+- **Devolver a la cola.** Botón en el paciente en atención, en todas las áreas, con confirmación. El paciente regresa a la cola de esa misma área en su posición original (conserva su hora de llegada), en espera y sin contar como atención. Si ya se guardaron datos de ese paciente en esa área, no se permite y el mensaje explica el motivo. Queda en la bitácora (`devolver_a_cola`: quién, cuándo y desde qué área).
+- **Aviso claro al llamar.** Si alguien con rol de área tiene un paciente abierto en otra área, la pantalla lo dice (paciente, número de atención y área), con un botón para ir a esa área, y el mensaje de "Ya tiene un paciente en atención" nombra al paciente y al área. Corrige la confusión de "Llamar siguiente" bloqueado mientras el panel decía que no había nadie en atención.
+
+### Base de datos (se aplica con `./scripts/actualizar.sh v1.2`)
+- `026_atencion_por_rol`: el índice único de "un paciente en atención por persona" pasa a ser por persona y área, un disparador mantiene "uno solo" para los roles que no son Administración, y se agrega el evento `devolver_a_cola` a la bitácora.
+- No modifica ni borra datos existentes.
+
+### Correcciones
+- `probar-restauracion.sh` ya no tiene fijo el número de migraciones.
+
 ## v1.1
 
 ### Novedades
