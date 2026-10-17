@@ -1,5 +1,20 @@
 # Notas de cambios
 
+## v1.2.1
+
+### Correcciones
+- **Diálogos con campos de texto** (por ejemplo "Enviar al paciente" → Motivo): al escribir, el cursor saltaba al botón Cancelar y solo dejaba escribir una letra a la vez. Ahora, al abrir, el cursor queda en el primer campo y no se mueve mientras se escribe. Aplica a todos los diálogos del sistema (enviar, unir registros, eliminar usuario, entrega en farmacia, etc.), que comparten el mismo componente.
+
+### Novedades
+- **Pacientes que atiende otra persona** (tarjetas de "En atención ahora"): ahora se pueden abrir. Muestran, solo para consulta, el paciente, su código y número de atención, edad, tipo, área, quién lo atiende y desde qué hora. La tarjeta se ve clicable.
+- **Solo Administración**, con confirmación en cada paso:
+  - **Tomar atención**: el paciente pasa a su nombre (conserva la hora de inicio), respetando un paciente por área.
+  - **Devolver a la cola**: con las mismas reglas del botón existente (no se permite si ya hay datos clínicos guardados).
+  - Los roles de área solo ven el detalle. Ambas acciones quedan en la bitácora (quién, a quién se lo quitó y cuándo): `tomar_atencion` y `devolver_a_cola`.
+
+### Base de datos (se aplica con `./scripts/actualizar.sh v1.2.1`)
+- `027_bitacora_tomar_atencion`: agrega el evento `tomar_atencion` a la bitácora. No modifica ni borra datos.
+
 ## v1.2
 
 ### Novedades

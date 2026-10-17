@@ -869,7 +869,7 @@ No la llevan los catálogos que solo cambian por migración o seed (`areas`, `ro
 ### 5.5 Eventos escritos por el backend en la bitácora
 `validar_bitacora_directa()` (`BEFORE INSERT` en `bitacora`) controla las inserciones que hace el backend directamente:
 
-- Solo admite estas acciones: `inicio_sesion`, `inicio_sesion_fallido`, `cierre_sesion`, `sesion_expirada`, `cambio_contrasena`, `restablecer_contrasena`, `bloqueo_cuenta`, `desbloqueo_cuenta`, `acceso_denegado`, `ver_historial`, `ver_paciente`, `buscar_paciente`, `unir`, `cierre_dia`, `atender_directo` y `devolver_a_cola`. `crear`, `editar` y `eliminar` quedan reservadas a la bitácora automática, así que no se pueden falsificar.
+- Solo admite estas acciones: `inicio_sesion`, `inicio_sesion_fallido`, `cierre_sesion`, `sesion_expirada`, `cambio_contrasena`, `restablecer_contrasena`, `bloqueo_cuenta`, `desbloqueo_cuenta`, `acceso_denegado`, `ver_historial`, `ver_paciente`, `buscar_paciente`, `unir`, `cierre_dia`, `atender_directo`, `devolver_a_cola` y `tomar_atencion`. `crear`, `editar` y `eliminar` quedan reservadas a la bitácora automática, así que no se pueden falsificar.
 - `id_usuario` debe ser el usuario de la sesión (`sjlc.id_usuario`). Hay dos excepciones: `inicio_sesion_fallido` con un usuario inexistente, que va sin id y exige `nombre_usuario_intentado`, y `acceso_denegado` de una petición sin sesión, que va sin id.
 - Las inserciones que hace `registrar_bitacora()` (profundidad de trigger mayor que 1) y las del dueño no pasan por esta revisión.
 
@@ -1090,6 +1090,7 @@ Con `gin_trgm_ops`, PostgreSQL resuelve un `LIKE '%...%'` con el índice GIN en 
 | 019_salida_tramo_coherente | La salida de un tramo cerrado automáticamente nunca queda antes de su entrada o inicio |
 | 020_bitacora_atender_directo | Evento `atender_directo` |
 | 026_atencion_por_rol | Un paciente por área para administración, uno solo para los demás roles; evento `devolver_a_cola` |
+| 027_bitacora_tomar_atencion | Evento `tomar_atencion` |
 | 021_vacuna_texto_libre | `nombre_vacuna_texto`; `id_vacuna` pasa a ser opcional; índice único de dosis por nombre normalizado |
 | 022_motivo_envio | `motivo_envio` en recorridos_atencion |
 | 023_catalogos_oficiales_ine | «No indica» pasa al código 99 (valor por omisión); corrige K'iche'/Kaqchikel y los códigos de pueblo anteriores a la numeración del INE |

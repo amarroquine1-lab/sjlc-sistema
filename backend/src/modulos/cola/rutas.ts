@@ -5,7 +5,7 @@ import type { Dependencias } from "../../middleware/seguridad.js";
 import type { Accion } from "../../seguridad/permisos.js";
 import type { RegistroRutas } from "../../seguridad/rutas.js";
 import { historialSignos, registrarSignos } from "../signos/servicio.js";
-import { CLAVES_AREA, cerrarDia, devolverALaCola, enviar, llamarSiguiente, panelAtencion, tramoActual, verCola, type UsuarioActor } from "./servicio.js";
+import { CLAVES_AREA, cerrarDia, devolverALaCola, enviar, tomarAtencion, llamarSiguiente, panelAtencion, tramoActual, verCola, type UsuarioActor } from "./servicio.js";
 
 const idEsq = z.object({ id: z.coerce.number().int().positive().max(2147483647) });
 // Cada signo lleva su propio mensaje: "La saturación debe estar entre 50 y 100".
@@ -43,6 +43,8 @@ export function rutasCola(registro: RegistroRutas, deps: Dependencias): void {
     manejador: async (req, res) => { res.json(await enviar(pool, actor(req), req.validado.params.id, req.validado.cuerpo.destino, req.validado.cuerpo.motivo)); } });
   registro.agregar({ metodo: "post", ruta: "/api/atenciones/:id/devolver", acceso: { permiso: "atender_cola" }, esquema: { params: idEsq },
     manejador: async (req, res) => { res.json(await devolverALaCola(pool, actor(req), req.validado.params.id)); } });
+  registro.agregar({ metodo: "post", ruta: "/api/atenciones/:id/tomar", acceso: { permiso: "administracion" }, esquema: { params: idEsq },
+    manejador: async (req, res) => { res.json(await tomarAtencion(pool, actor(req), req.validado.params.id)); } });
   registro.agregar({ metodo: "post", ruta: "/api/atenciones/:id/signos", acceso: { permiso: "registrar_signos" }, esquema: { params: idEsq, cuerpo: esquemaSignos },
     manejador: async (req, res) => { res.status(201).json(await registrarSignos(pool, actor(req), req.validado.params.id, req.validado.cuerpo)); } });
   registro.agregar({ metodo: "get", ruta: "/api/atenciones/:id/signos", acceso: { permiso: "atender_cola" }, esquema: { params: idEsq },

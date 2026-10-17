@@ -32,7 +32,7 @@ export interface Municipio { id_municipio: number; id_departamento: number; nomb
 export interface FilaCola {
   id_recorrido_atencion: number; id_atencion: number; en_atencion: boolean; id_usuario: number | null; atiende: string | null; numero_atencion: string;
   estado: string; tipo: string; es_emergencia: boolean; id_paciente: number; codigo_paciente: string; nombres: string | null; apellidos: string | null;
-  sexo: "F" | "M"; datos_incompletos: boolean; espera_minutos: number; entrada_hora: string; pendientes: number; edad: string | null; motivo_envio: string | null;
+  sexo: "F" | "M"; datos_incompletos: boolean; espera_minutos: number; entrada_hora: string; inicio_hora: string | null; pendientes: number; edad: string | null; motivo_envio: string | null;
 }
 export interface Cola { area: string; clave: string; en_espera: FilaCola[]; en_atencion: FilaCola[]; mi_atencion: FilaCola | null;
   mi_atencion_otra_area?: { numero_atencion: string; area: string; clave: string | null; paciente: string } | null }

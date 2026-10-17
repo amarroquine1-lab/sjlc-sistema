@@ -7,6 +7,7 @@ import { AvisoVencimiento } from "../componentes/AvisoVencimiento";
 import { BarraSuperior } from "../componentes/BarraSuperior";
 import { Boton } from "../componentes/Boton";
 import { Campo } from "../componentes/Campo";
+import { useSesion } from "../sesion/ContextoSesion";
 import { ILUSTRACION_DE_AREA } from "../ilustraciones/Ilustraciones";
 import { Dialogo } from "../componentes/Dialogo";
 import { Mensaje } from "../componentes/Mensaje";
@@ -36,6 +37,10 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
   const [motivo, setMotivo] = useState("");
   const [cargando, setCargando] = useState(false);
   const [devolviendo, setDevolviendo] = useState(false);
+  // Paciente que atiende otra persona: se abre su detalle (solo lectura) y, para Administración, las acciones con confirmación.
+  const [ajena, setAjena] = useState<{ fila: FilaCola; paso: "ver" | "tomar" | "devolver" } | null>(null);
+  const { yo } = useSesion();
+  const esAdmin = yo?.rol === "administrador";
   const idActual = useRef<number | null>(null);
 
   const cargarPanel = useCallback(async (id: number) => {
@@ -93,6 +98,22 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
     finally { setCargando(false); setDevolviendo(false); await cargarCola(false); }
   };
 
+  const confirmarAjena = async () => {
+    if (!ajena || ajena.paso === "ver") return;
+    const { fila: f, paso } = ajena;
+    setCargando(true);
+    try {
+      if (paso === "tomar") {
+        await api.post(`/api/atenciones/${f.id_atencion}/tomar`);
+        setMensaje({ tipo: "exito", texto: `Tomó la atención de ${nombreBreve(f)} (${f.numero_atencion}); la llevaba ${f.atiende ?? "otra persona"}.` });
+      } else {
+        await api.post(`/api/atenciones/${f.id_atencion}/devolver`);
+        setMensaje({ tipo: "exito", texto: `${nombreBreve(f)} (${f.numero_atencion}) volvió a la cola de ${titulo}.` });
+      }
+    } catch (e) { setMensaje({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo completar la acción." }); }
+    finally { setCargando(false); setAjena(null); await cargarCola(false); }
+  };
+
   const recargar = async () => { if (panel) await cargarPanel(panel.atencion.id_atencion); };
   // Cierre hecho dentro del panel del área (farmacia: entregar y finalizar): se despide al paciente y se refresca la cola.
   const terminar = async (texto: string) => {
@@ -111,7 +132,8 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
   const fila = (f: FilaCola, atendiendo: boolean) => {
     const nombre = [f.nombres, f.apellidos].filter(Boolean).join(" ") || "Sin identificar";
     return (
-      <li key={f.id_recorrido_atencion} className={`fila-cola${f.es_emergencia ? " fila-cola--emergencia" : ""}`}>
+      <li key={f.id_recorrido_atencion} className={`fila-cola${f.es_emergencia ? " fila-cola--emergencia" : ""}${atendiendo ? " fila-cola--ajena" : ""}`}
+        onClick={atendiendo ? () => setAjena({ fila: f, paso: "ver" }) : undefined}>
         <div className="fila-cola__nombre">{nombre}</div>
         <div className="fila-cola__meta cifras">
           <span className="codigo">{f.codigo_paciente}</span><span className="codigo">{f.numero_atencion}</span>
@@ -131,6 +153,7 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
           {f.pendientes > 0 && <span>{f.pendientes} pendiente(s)</span>}
         </div>
         {f.motivo_envio && <p className="fila-cola__motivo">Motivo: {f.motivo_envio}</p>}
+        {atendiendo && <div className="fila-cola__accion"><Boton variante="secundario" className="boton--pequeno" aria-label={`Ver detalle de ${nombreBreve(f)} (${f.numero_atencion})`}>Ver detalle</Boton></div>}
       </li>
     );
   };
@@ -204,6 +227,39 @@ export function PantallaArea({ clave, titulo, panelDelArea, mostrarSignos = true
           </section>
         </div>
       </main>
+      {ajena && (() => {
+        const f = ajena.fila; const quien = f.atiende ?? "otra persona";
+        if (ajena.paso === "tomar") return (
+          <Dialogo titulo="Tomar la atención" textoConfirmar="Tomar atención" cargando={cargando} alConfirmar={() => void confirmarAjena()} alCancelar={() => setAjena({ fila: f, paso: "ver" })}>
+            <p>¿Tomar la atención de {nombreBreve(f)} ({f.numero_atencion}) que lleva {quien}?</p>
+            <p>Pasa a su nombre en {titulo} y {quien} deja de verlo en su pantalla. Queda en la bitácora.</p>
+          </Dialogo>
+        );
+        if (ajena.paso === "devolver") return (
+          <Dialogo titulo="Devolver a la cola" textoConfirmar="Devolver a la cola" cargando={cargando} alConfirmar={() => void confirmarAjena()} alCancelar={() => setAjena({ fila: f, paso: "ver" })}>
+            <p>¿Devolver a {nombreBreve(f)} ({f.numero_atencion}) a la cola de {titulo}?</p>
+            <p>Vuelve a su lugar en la cola y lo que {quien} haya escrito sin guardar se descarta. Si ya se guardaron datos de este paciente aquí, no se podrá devolver. Queda en la bitácora.</p>
+          </Dialogo>
+        );
+        return (
+          <Dialogo titulo="Paciente en atención" textoCancelar="Cerrar" alCancelar={() => setAjena(null)}
+            acciones={esAdmin && (<>
+              <Boton variante="secundario" disabled={Boolean(cola?.mi_atencion)} onClick={() => setAjena({ fila: f, paso: "devolver" })}>Devolver a la cola</Boton>
+              <Boton variante="acento" disabled={Boolean(cola?.mi_atencion)} onClick={() => setAjena({ fila: f, paso: "tomar" })}>Tomar atención</Boton>
+            </>)}>
+            <dl className="datos-ajena">
+              <dt>Paciente</dt><dd>{nombreCompleto(f)}</dd>
+              <dt>Código y atención</dt><dd className="cifras">{f.codigo_paciente} · {f.numero_atencion}</dd>
+              <dt>Edad y sexo</dt><dd>{[f.edad, f.sexo === "F" ? "Mujer" : "Hombre"].filter(Boolean).join(" · ")}</dd>
+              <dt>Tipo</dt><dd>{capitalizar(f.tipo)}</dd>
+              <dt>Área</dt><dd>{titulo}</dd>
+              <dt>Lo atiende</dt><dd>{quien}</dd>
+              <dt>Desde las</dt><dd className="cifras">{f.inicio_hora ?? "—"}</dd>
+            </dl>
+            {esAdmin && cola?.mi_atencion && <p>Para tomarlo o devolverlo, primero termine con su paciente en esta área.</p>}
+          </Dialogo>
+        );
+      })()}
       {devolviendo && panel && (
         <Dialogo titulo="Devolver a la cola" textoConfirmar="Devolver a la cola" cargando={cargando} alConfirmar={() => void confirmarDevolucion()} alCancelar={() => setDevolviendo(false)}>
           <p>¿Devolver a {nombreBreve(panel.paciente)} ({panel.atencion.numero_atencion}) a la cola de {titulo}?</p>

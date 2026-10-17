@@ -251,6 +251,11 @@ details.mas-datos[open] > summary { margin-bottom: 8px; }
 .fila-cola:last-child { border-bottom: 0; }
 .fila-cola--emergencia { background: var(--peligro-fondo); }
 .fila-cola:not(.fila-cola--emergencia):hover { background: var(--area-fondo); }
+.fila-cola--ajena { cursor: pointer; }
+.fila-cola--ajena:hover { background: var(--area-fondo); }
+.datos-ajena { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 12px; }
+.datos-ajena dt { color: var(--tinta-suave, var(--tinta)); font-weight: 600; }
+.datos-ajena dd { margin: 0; }
 .fila-cola__nombre { font-family: var(--fuente-titulo); font-weight: 600; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; color: var(--marino); }
 .fila-cola__meta { grid-column: 1; color: var(--tinta-suave); font-size: 14px; display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .fila-cola__meta span { white-space: nowrap; }

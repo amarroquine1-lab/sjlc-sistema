@@ -55,7 +55,7 @@ const FILAS = `SELECT r.id_recorrido_atencion, r.id_atencion, r.fecha_hora_inici
     p.id_paciente, p.codigo_paciente, p.nombres, p.apellidos, p.sexo, to_char(p.fecha_nacimiento, 'YYYY-MM-DD') AS fecha_nacimiento,
     p.edad_aproximada_anios, p.datos_incompletos, to_char(current_date, 'YYYY-MM-DD') AS hoy,
     floor(extract(epoch FROM (now() - r.fecha_hora_entrada)) / 60)::int AS espera_minutos,
-    to_char(r.fecha_hora_entrada, 'HH24:MI') AS entrada_hora, r.motivo_envio,
+    to_char(r.fecha_hora_entrada, 'HH24:MI') AS entrada_hora, to_char(r.fecha_hora_inicio, 'HH24:MI') AS inicio_hora, r.motivo_envio,
     (SELECT count(*) FROM proximos_controles pc WHERE pc.id_paciente = p.id_paciente AND pc.estado = 'pendiente')::int AS pendientes
   FROM recorridos_atencion r
   JOIN atenciones a ON a.id_atencion = r.id_atencion
@@ -275,11 +275,37 @@ export async function devolverALaCola(pool: pg.Pool, actor: UsuarioActor, idAten
     }
     await c.query("UPDATE recorridos_atencion SET fecha_hora_inicio = NULL, id_usuario = NULL WHERE id_recorrido_atencion = $1", [t.id_recorrido_atencion]);
     await c.query("UPDATE atenciones SET estado = 'en_espera' WHERE id_atencion = $1", [idAtencion]);
+    const antes = await c.query("SELECT nombres || ' ' || apellidos AS nombre FROM usuarios WHERE id_usuario = $1", [t.id_usuario]);
     await registrarEventoEn(c, { accion: "devolver_a_cola", entidad: "atenciones", idRegistro: idAtencion, idUsuario: actor.idUsuario, direccionIp: actor.ip,
-      detalle: `área ${t.nombre_area}; lo atendía el usuario ${t.id_usuario}` });
+      detalle: `área ${t.nombre_area}; lo atendía ${antes.rows[0]?.nombre ?? "—"} (usuario ${t.id_usuario})${t.id_usuario === actor.idUsuario ? "" : "; lo devolvió otra persona"}` });
     const e = await c.query("SELECT numero_atencion FROM atenciones WHERE id_atencion = $1", [idAtencion]);
     return { id_atencion: idAtencion, numero_atencion: e.rows[0].numero_atencion as string, area: t.nombre_area as string };
   });
+}
+
+// "Tomar atención": Administración toma al paciente que otra persona está atendiendo en un área (por ejemplo, si quien lo llamó
+// ya no está). Se reasigna el mismo tramo —conserva la hora de inicio—, respetando un paciente por área.
+export async function tomarAtencion(pool: pg.Pool, actor: UsuarioActor, idAtencion: number) {
+  if (actor.rol !== "administrador") throw new ErrorApi(403, "SIN_PERMISO", "Solo Administración puede tomar la atención de otra persona.");
+  try {
+    return await conTransaccion(pool, { idUsuario: actor.idUsuario, direccionIp: actor.ip }, async (c) => {
+      const t = await tramoActual(c, actor, idAtencion, true);
+      if (!t.en_atencion) throw new ErrorApi(409, "NO_EN_ATENCION", "Ese paciente no está en atención; llámelo desde la cola.");
+      if (t.id_usuario === actor.idUsuario) throw new ErrorApi(409, "YA_ES_SUYA", "Ese paciente ya lo está atendiendo usted.");
+      const yaAtiende = await atencionEnCurso(c, actor.idUsuario, t.nombre_area);
+      if (yaAtiende) throw new ErrorApi(409, "YA_ATIENDE", mensajeYaAtiende(yaAtiende));
+      const antes = await c.query("SELECT nombres || ' ' || apellidos AS nombre FROM usuarios WHERE id_usuario = $1", [t.id_usuario]);
+      await c.query("UPDATE recorridos_atencion SET id_usuario = $2 WHERE id_recorrido_atencion = $1", [t.id_recorrido_atencion, actor.idUsuario]);
+      await registrarEventoEn(c, { accion: "tomar_atencion", entidad: "atenciones", idRegistro: idAtencion, idUsuario: actor.idUsuario, direccionIp: actor.ip,
+        detalle: `área ${t.nombre_area}; la atendía ${antes.rows[0]?.nombre ?? "—"} (usuario ${t.id_usuario})` });
+      return { id_atencion: idAtencion, area: t.nombre_area as string };
+    }).then(async (r) => ({ ...r, ...(await panelAtencion(pool, actor, idAtencion)) }));
+  } catch (error) {
+    if (["ux_recorridos_usuario_area_en_atencion", "ux_recorridos_operativo_un_paciente"].includes((error as { constraint?: string }).constraint ?? "")) {
+      throw new ErrorApi(409, "YA_ATIENDE", "Ya tiene un paciente en atención en esta área. Termine con él antes de tomar a otro.");
+    }
+    throw error;
+  }
 }
 
 // Cierre del día: toda atención abierta pasa a "no concluida". Lo ejecuta el sistema (usuario "sistema") o un administrador.
